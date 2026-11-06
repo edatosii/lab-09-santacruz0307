@@ -1,117 +1,253 @@
+
 package co.umariana.dao;
 
 import co.umariana.conexion.ConexionBD;
 import co.umariana.modelo.Estudiante;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+
+import java.util.ArrayList;
 import java.util.List;
 
 /**
- * DAO (Data Access Object): la única clase que habla con la base de datos.
- * Aquí viven las operaciones del CRUD sobre la tabla "estudiantes"
- * (ver db/schema.sql). Se construye igual que ClienteDAO visto en clase.
+ * DAO (Data Access Object).
  *
- * INSTRUCCIONES PARA EL ESTUDIANTE
- * --------------------------------
- * 1. Cada método marcado con "TODO" lanza UnsupportedOperationException.
- *    Reemplace esa línea por su implementación con JDBC.
- * 2. NO modifique las pruebas (src/test). Las pruebas NO necesitan MySQL:
- *    usan una base de datos H2 en memoria.
- * 3. La Etapa 1 (registrar) YA está resuelta: úsela como modelo para las demás.
- *    Resuelva el resto en orden (Etapa 2, 3...): cada etapa usa las anteriores.
+ * Esta clase se encarga de realizar las operaciones CRUD
+ * sobre la tabla "estudiantes" de la base de datos.
  *
- * PATRÓN (el mismo de ClienteDAO.registrar):
+ * CRUD significa:
+ * C: Create  -> Registrar estudiantes.
+ * R: Read    -> Consultar y listar estudiantes.
+ * U: Update  -> Actualizar estudiantes.
+ * D: Delete  -> Eliminar estudiantes.
  *
- *     String sql = "INSERT INTO ... VALUES (?, ?, ?)";
- *     try (Connection con = ConexionBD.conectar();
- *          PreparedStatement ps = con.prepareStatement(sql)) {
- *         ps.setString(1, ...);
- *         return ps.executeUpdate() > 0;
- *     } catch (SQLException e) {
- *         System.out.println("Error al registrar: " + e.getMessage());
- *         return false;
- *     }
- *
- * REGLAS (las pruebas las verifican)
- *  - Los métodos NO lanzan SQLException: la capturan, imprimen el mensaje con
- *    System.out.println y devuelven un valor "de error" (false, lista vacía o null).
- *  - Use SIEMPRE PreparedStatement con parámetros (?), nunca concatene datos
- *    dentro del SQL (inyección SQL).
- *  - El id lo genera la base de datos (AUTO_INCREMENT): al registrar se ignora
- *    el id del objeto Estudiante.
- *  - El correo es UNIQUE: registrar o actualizar con un correo repetido provoca un
- *    SQLException; el DAO lo captura y devuelve false (no se lanza ninguna excepción).
+ * Las consultas se realizan mediante JDBC y PreparedStatement.
  */
 public class EstudianteDAO {
 
-    // =====================================================================
-    // ETAPA 1. Registrar (INSERT)  -- YA RESUELTA, úsela como modelo
-    // =====================================================================
+    // =========================================================
+    // ETAPA 1. REGISTRAR ESTUDIANTE (INSERT)
+    // =========================================================
 
     /**
-     * Inserta un estudiante nuevo (nombre, correo, semestre).
+     * Registra un estudiante nuevo en la base de datos.
      *
-     * @return true si se insertó; false si hubo un error (por ejemplo, correo repetido)
+     * El ID no se incluye en el INSERT porque lo genera
+     * automáticamente la base de datos.
+     *
+     * @param estudiante objeto con nombre, correo y semestre.
+     * @return true si se registra; false si ocurre un error.
      */
     public boolean registrar(Estudiante estudiante) {
+
+        // Consulta SQL con tres parámetros.
         String sql = "INSERT INTO estudiantes (nombre, correo, semestre) VALUES (?, ?, ?)";
+
+        // Abre la conexión y prepara la consulta.
+        // try-with-resources cierra los recursos automáticamente.
         try (Connection con = ConexionBD.conectar();
              PreparedStatement ps = con.prepareStatement(sql)) {
+
+            // Asigna los valores a los signos de interrogación.
             ps.setString(1, estudiante.getNombre());
             ps.setString(2, estudiante.getCorreo());
             ps.setInt(3, estudiante.getSemestre());
+
+            // Ejecuta el INSERT.
+            // Devuelve true si se insertó al menos una fila.
             return ps.executeUpdate() > 0;
+
         } catch (SQLException e) {
+
+            // Captura errores como un correo duplicado.
             System.out.println("Error al registrar: " + e.getMessage());
+
+            // No lanza la excepción al código que llamó al DAO.
             return false;
         }
     }
 
-    // =====================================================================
-    // ETAPA 2. Listar (SELECT)
-    // =====================================================================
 
-    /** @return todos los estudiantes ordenados por id; lista vacía si no hay o si hay un error */
-    public List<Estudiante> listar() {
-        // TODO Etapa 2: SELECT id, nombre, correo, semestre FROM estudiantes ORDER BY id
-        //               Use executeQuery() y recorra el ResultSet con while (rs.next()),
-        //               creando un Estudiante por cada fila y agregándolo a un ArrayList.
-        throw new UnsupportedOperationException("TODO: listar");
-    }
-
-    // =====================================================================
-    // ETAPA 3. Buscar por id (SELECT ... WHERE)
-    // =====================================================================
-
-    /** @return el estudiante con ese id, o null si no existe (o si hay un error) */
-    public Estudiante buscarPorId(int id) {
-        // TODO Etapa 3: SELECT id, nombre, correo, semestre FROM estudiantes WHERE id = ?
-        throw new UnsupportedOperationException("TODO: buscarPorId");
-    }
-
-    // =====================================================================
-    // ETAPA 4. Actualizar (UPDATE)
-    // =====================================================================
+    // =========================================================
+    // ETAPA 2. LISTAR ESTUDIANTES (SELECT)
+    // =========================================================
 
     /**
-     * Cambia nombre, correo y semestre del estudiante cuyo id es estudiante.getId().
+     * Consulta todos los estudiantes ordenados por ID.
      *
-     * @return true si se actualizó; false si no existe ese id o si hubo un error
-     *         (por ejemplo, correo ya usado por OTRO estudiante)
+     * @return lista de estudiantes; lista vacía si ocurre un error
+     *         o no existen registros.
      */
-    public boolean actualizar(Estudiante estudiante) {
-        // TODO Etapa 4: UPDATE estudiantes SET nombre = ?, correo = ?, semestre = ? WHERE id = ?
-        throw new UnsupportedOperationException("TODO: actualizar");
+    public List<Estudiante> listar() {
+
+        // Lista donde guardaremos los estudiantes consultados.
+        List<Estudiante> estudiantes = new ArrayList<>();
+
+        // Consulta todos los campos necesarios, ordenados por ID.
+        String sql = "SELECT id, nombre, correo, semestre "
+                   + "FROM estudiantes ORDER BY id";
+
+        try (Connection con = ConexionBD.conectar();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            // rs.next() avanza a la siguiente fila del resultado.
+            // El ciclo termina cuando no quedan más filas.
+            while (rs.next()) {
+
+                // Construye un objeto con los datos de la fila actual.
+                Estudiante estudiante = new Estudiante(
+                    rs.getInt("id"),
+                    rs.getString("nombre"),
+                    rs.getString("correo"),
+                    rs.getInt("semestre")
+                );
+
+                // Agrega el objeto a la lista.
+                estudiantes.add(estudiante);
+            }
+
+        } catch (SQLException e) {
+
+            // Informa el error sin lanzar la excepción.
+            System.out.println("Error al listar: " + e.getMessage());
+        }
+
+        // Devuelve la lista con los registros encontrados.
+        // Si no hubo resultados o ocurrió un error, estará vacía.
+        return estudiantes;
     }
 
-    // =====================================================================
-    // ETAPA 5. Eliminar (DELETE)
-    // =====================================================================
 
-    /** @return true si se eliminó; false si no existía ese id o si hubo un error */
+    // =========================================================
+    // ETAPA 3. BUSCAR ESTUDIANTE POR ID (SELECT WHERE)
+    // =========================================================
+
+    /**
+     * Busca un estudiante por su identificador.
+     *
+     * @param id identificador del estudiante que se busca.
+     * @return el estudiante encontrado o null si no existe
+     *         o se presenta un error.
+     */
+    public Estudiante buscarPorId(int id) {
+
+        // El signo ? representa el ID que se consultará.
+        String sql = "SELECT id, nombre, correo, semestre "
+                   + "FROM estudiantes WHERE id = ?";
+
+        try (Connection con = ConexionBD.conectar();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            // Asigna el ID al parámetro de la consulta.
+            ps.setInt(1, id);
+
+            // Ejecuta la consulta y obtiene el resultado.
+            try (ResultSet rs = ps.executeQuery()) {
+
+                // Si existe una fila, se construye el objeto.
+                if (rs.next()) {
+
+                    return new Estudiante(
+                        rs.getInt("id"),
+                        rs.getString("nombre"),
+                        rs.getString("correo"),
+                        rs.getInt("semestre")
+                    );
+                }
+            }
+
+        } catch (SQLException e) {
+
+            // Informa el error de consulta.
+            System.out.println("Error al buscar por ID: " + e.getMessage());
+        }
+
+        // Si no se encontró el estudiante o hubo un error.
+        return null;
+    }
+
+
+    // =========================================================
+    // ETAPA 4. ACTUALIZAR ESTUDIANTE (UPDATE)
+    // =========================================================
+
+    /**
+     * Actualiza los datos de un estudiante existente.
+     *
+     * El ID determina qué estudiante se modificará.
+     *
+     * @param estudiante objeto con ID y nuevos datos.
+     * @return true si se modificó una fila; false si no se
+     *         actualizó ningún registro o hubo un error.
+     */
+    public boolean actualizar(Estudiante estudiante) {
+
+        // Actualiza los datos del estudiante cuyo ID coincida.
+        String sql = "UPDATE estudiantes "
+                   + "SET nombre = ?, correo = ?, semestre = ? "
+                   + "WHERE id = ?";
+
+        try (Connection con = ConexionBD.conectar();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            // Asigna los nuevos datos en el orden de los parámetros.
+            ps.setString(1, estudiante.getNombre());
+            ps.setString(2, estudiante.getCorreo());
+            ps.setInt(3, estudiante.getSemestre());
+
+            // El último parámetro indica qué estudiante se actualiza.
+            ps.setInt(4, estudiante.getId());
+
+            // Devuelve true si la base de datos informa
+            // que se modificó al menos una fila.
+            return ps.executeUpdate() > 0;
+
+        } catch (SQLException e) {
+
+            // También captura errores como un correo UNIQUE duplicado.
+            System.out.println("Error al actualizar: " + e.getMessage());
+
+            return false;
+        }
+    }
+
+
+    // =========================================================
+    // ETAPA 5. ELIMINAR ESTUDIANTE (DELETE)
+    // =========================================================
+
+    /**
+     * Elimina un estudiante mediante su ID.
+     *
+     * @param id identificador del estudiante que se eliminará.
+     * @return true si se eliminó una fila; false si no existe
+     *         el registro o se presenta un error.
+     */
     public boolean eliminar(int id) {
-        // TODO Etapa 5: DELETE FROM estudiantes WHERE id = ?
-        throw new UnsupportedOperationException("TODO: eliminar");
+
+        // La consulta elimina únicamente el registro cuyo ID coincida.
+        String sql = "DELETE FROM estudiantes WHERE id = ?";
+
+        try (Connection con = ConexionBD.conectar();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            // Asigna el ID al parámetro de la consulta.
+            ps.setInt(1, id);
+
+            // Ejecuta el DELETE.
+            // Si se eliminó al menos una fila, devuelve true.
+            return ps.executeUpdate() > 0;
+
+        } catch (SQLException e) {
+
+            // Captura e informa errores de eliminación.
+            System.out.println("Error al eliminar: " + e.getMessage());
+
+            return false;
+        }
     }
 }
